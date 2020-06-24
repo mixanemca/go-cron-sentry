@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
 import (
@@ -20,6 +21,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mixanemca/go-cron-sentry/app"
 	"github.com/spf13/cobra"
 
 	"github.com/spf13/viper"
@@ -30,13 +32,8 @@ const (
 )
 
 var (
-	cfgFile       string
-	report        bool
-	maxLenght     int
-	notNullOutput bool
-	quiet         bool
-	versionFlag   bool
-	nonZeroExit   bool
+	cfgFile     string
+	versionFlag bool
 )
 
 var (
@@ -45,13 +42,11 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:                   "cron-sentry [flags] command [arg ...]",
+	Use:                   "go-cron-sentry [flags] -- command [arg ...]",
+	Example:               "  go-cron-sentry --quite -- aptly-mirror-update --repo debian --distribution buster",
 	Short:                 "Wraps commands and reports those that fail to Sentry",
 	DisableFlagsInUseLine: true,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	//	Run: func(cmd *cobra.Command, args []string) { },
-	Run: rootCmdRun,
+	Run:                   rootCmdRun,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -75,22 +70,26 @@ func init() {
 	rootCmd.PersistentFlags().StringP("dsn", "d", "", "Sentry DSN (env SENTRY_DSN)")
 	viper.BindEnv("dsn", "SENTRY_DSN")
 
-	rootCmd.PersistentFlags().BoolVarP(&report, "report-all", "a", false, "report to Sentry even if the task has succeeded (env SENTRY_REPORT_ALL)")
+	rootCmd.PersistentFlags().BoolP("report-all", "a", false, "report to Sentry even if the task has succeeded (env SENTRY_REPORT_ALL)")
 	viper.BindEnv("report-all", "SENTRY_REPORT_ALL")
 
-	rootCmd.PersistentFlags().IntVarP(&maxLenght, "string-max-length", "M", defaultMaxLenght, "the maximum characters of a string that should be sent to Sentry (env STRING_MAX_LENGTH)")
+	rootCmd.PersistentFlags().IntP("string-max-length", "M", defaultMaxLenght, "the maximum characters of a string that should be sent to Sentry (env STRING_MAX_LENGTH)")
 	viper.BindEnv("STRING_MAX_LENGTH")
 
-	rootCmd.PersistentFlags().BoolVarP(&notNullOutput, "not-null-output", "n", false, "not send to sentry if exit-code {0,1} and stdout/stderr is null (env SENTRY_NOT_NULL_OUTPUT)")
+	rootCmd.PersistentFlags().BoolP("not-null-output", "n", false, "not send to Sentry if exit-code {0,1} and stdout/stderr is null (env SENTRY_NOT_NULL_OUTPUT)")
 	viper.BindEnv("not-null-output", "SENTRY_NOT_NULL_OUTPUT")
 
-	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "suppress all command output (env SENTRY_QUIET)")
+	rootCmd.PersistentFlags().BoolP("quiet", "q", false, "suppress all command output (env SENTRY_QUIET)")
+	// viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet"))
 	viper.BindEnv("quiet", "SENTRY_QUIET")
 
 	rootCmd.PersistentFlags().BoolVarP(&versionFlag, "version", "v", false, "show program's version number and exit")
 
-	rootCmd.PersistentFlags().BoolVarP(&nonZeroExit, "non-zero-exit", "z", false, "not send to Sentry if exit-code 0 (env SENTRY_NON_ZERO_EXIT)")
+	rootCmd.PersistentFlags().BoolP("non-zero-exit", "z", false, "not send to Sentry if exit-code 0 (env SENTRY_NON_ZERO_EXIT)")
 	viper.BindEnv("non-zero-exit", "SENTRY_NON_ZERO_EXIT")
+
+	// Bind all persistent flags to Viper
+	viper.BindPFlags(rootCmd.PersistentFlags())
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -106,11 +105,35 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 		fmt.Println("cron-sentry", version)
 		os.Exit(0)
 	}
-	dsn := viper.GetString("dsn")
-	if dsn == "" {
-		fmt.Println("dns not set")
+	if len(args) < 1 {
+		fmt.Printf("ERROR: you must be specify the command\n\n")
+		cmd.Help()
 		os.Exit(1)
 	}
+
+	dsn := viper.GetString("dsn")
+	if dsn == "" {
+		fmt.Printf("ERROR: you must be specify the DSN\n\n")
+		cmd.Help()
+		os.Exit(1)
+	}
+
+	a, err := app.New(
+		app.WithDSN(dsn),
+		app.WithQuiet(viper.GetBool("quiet")),
+	)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(2)
+	}
+
+	out, err := a.Runner().Run(args[0], args[1:]...)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(2)
+	}
+
 	fmt.Printf("DSN: %s\n", dsn)
 	fmt.Printf("Run: %s\n", strings.Join(args, " "))
+	fmt.Print(out)
 }
