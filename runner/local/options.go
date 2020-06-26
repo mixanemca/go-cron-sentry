@@ -1,4 +1,4 @@
-package runner
+package local
 
 // WithQuiet suppress all command output
 func WithQuiet(quiet bool) Option {

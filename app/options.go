@@ -15,3 +15,20 @@ func WithQuiet(quiet bool) Option {
 		return nil
 	}
 }
+
+// WithTask make a cron task
+func WithTask(command string, args ...string) Option {
+	return func(a *app) error {
+		a.task.Command = command
+		a.task.Args = args
+		return nil
+	}
+}
+
+// WithRunnerBackend sets an app's Runner backend
+func WithRunnerBackend(runner string) Option {
+	return func(a *app) error {
+		a.runnerBackend = runner
+		return nil
+	}
+}

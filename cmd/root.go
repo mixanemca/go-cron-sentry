@@ -88,6 +88,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("non-zero-exit", "z", false, "not send to Sentry if exit-code 0 (env SENTRY_NON_ZERO_EXIT)")
 	viper.BindEnv("non-zero-exit", "SENTRY_NON_ZERO_EXIT")
 
+	rootCmd.PersistentFlags().StringP("runner", "r", "local", "cron task runner {local} (env SENTRY_RUNNER)")
+	viper.BindEnv("runner", "SENTRY_RUNNER")
+
 	// Bind all persistent flags to Viper
 	viper.BindPFlags(rootCmd.PersistentFlags())
 }
@@ -120,6 +123,8 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 
 	a, err := app.New(
 		app.WithDSN(dsn),
+		app.WithTask(args[0], args[1:]...),
+		app.WithRunnerBackend(viper.GetString("runner")),
 		app.WithQuiet(viper.GetBool("quiet")),
 	)
 	if err != nil {

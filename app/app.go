@@ -1,10 +1,17 @@
 package app
 
-import "github.com/mixanemca/go-cron-sentry/runner"
+import (
+	"github.com/mixanemca/go-cron-sentry/models"
+	"github.com/mixanemca/go-cron-sentry/runner"
+	"github.com/mixanemca/go-cron-sentry/runner/local"
+)
 
 type app struct {
-	dsn   string
-	quiet bool
+	dsn           string
+	quiet         bool
+	runnerBackend string
+
+	task *models.Task
 
 	runner runner.Client
 }
@@ -14,7 +21,9 @@ type Option func(c *app) error
 
 // New creates a new App. Various client options can be used to configure
 func New(opts ...Option) (App, error) {
-	a := &app{}
+	a := &app{
+		task: &models.Task{},
+	}
 	var err error
 
 	for _, opt := range opts {
@@ -23,9 +32,12 @@ func New(opts ...Option) (App, error) {
 		}
 	}
 
-	a.runner, err = runner.New(
-		runner.WithQuiet(a.quiet),
-	)
+	switch a.runnerBackend {
+	case "local":
+		a.runner, err = local.New(
+			local.WithQuiet(a.quiet),
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
